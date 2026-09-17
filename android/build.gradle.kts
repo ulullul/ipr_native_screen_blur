@@ -73,5 +73,6 @@ kotlin {
 
 dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("org.mockito:mockito-core:5.0.0")
+    // 5.0.0 from the template bundles Byte Buddy 1.12, which can't mock on Java 21+.
+    testImplementation("org.mockito:mockito-core:5.14.2")
 }
