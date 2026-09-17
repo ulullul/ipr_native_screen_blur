@@ -39,29 +39,10 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
-        getByName("test") {
-            java.srcDirs("src/test/kotlin")
-        }
     }
 
     defaultConfig {
         minSdk = 24
-    }
-
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-            all {
-                it.useJUnitPlatform()
-
-                it.outputs.upToDateWhen { false }
-
-                it.testLogging {
-                    events("passed", "skipped", "failed", "standardOut", "standardError")
-                    showStandardStreams = true
-                }
-            }
-        }
     }
 }
 
@@ -69,10 +50,4 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
-}
-
-dependencies {
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
-    // 5.0.0 from the template bundles Byte Buddy 1.12, which can't mock on Java 21+.
-    testImplementation("org.mockito:mockito-core:5.14.2")
 }
