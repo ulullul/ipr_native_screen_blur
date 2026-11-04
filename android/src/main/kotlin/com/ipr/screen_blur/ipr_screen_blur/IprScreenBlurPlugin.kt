@@ -6,11 +6,6 @@ import android.view.WindowManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.MethodChannel.Result
 
 /**
  * Screen protection through `FLAG_SECURE` on the current Activity's window.
@@ -21,54 +16,36 @@ import io.flutter.plugin.common.MethodChannel.Result
 class IprScreenBlurPlugin :
     FlutterPlugin,
     ActivityAware,
-    MethodCallHandler,
-    EventChannel.StreamHandler {
-    private lateinit var methodChannel: MethodChannel
-    private lateinit var eventChannel: EventChannel
+    SecureScreenHostApi {
+    private var eventChannel: StreamScreenEventsEventChannel? = null
 
     private var activity: Activity? = null
     private var secureModeEnabled = false
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, METHOD_CHANNEL)
-        methodChannel.setMethodCallHandler(this)
-        eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, EVENT_CHANNEL)
-        eventChannel.setStreamHandler(this)
+        SecureScreenHostApi.setUp(flutterPluginBinding.binaryMessenger, this)
+        // No Android events yet (screenshot/recording callbacks need API 34/35). The handler is
+        // registered so listening from Dart doesn't fail.
+        eventChannel =
+            StreamScreenEventsStreamHandler.register(
+                flutterPluginBinding.binaryMessenger,
+                object : StreamScreenEventsStreamHandler() {}
+            )
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        methodChannel.setMethodCallHandler(null)
-        eventChannel.setStreamHandler(null)
+        SecureScreenHostApi.setUp(binding.binaryMessenger, null)
+        eventChannel?.setStreamHandler(null)
+        eventChannel = null
     }
 
-    override fun onMethodCall(
-        call: MethodCall,
-        result: Result
-    ) {
-        when (call.method) {
-            "setSecureMode" -> {
-                val enabled = call.argument<Boolean>("enabled")
-                if (enabled == null) {
-                    result.error("invalid_arguments", "'enabled' must be a bool", null)
-                    return
-                }
-                setSecureMode(enabled)
-                result.success(null)
-            }
-            // Recording detection needs API 35 (addScreenRecordingCallback); not implemented yet.
-            "isScreenCaptured" -> result.success(false)
-            else -> result.notImplemented()
-        }
+    override fun setSecureMode(enabled: Boolean) {
+        secureModeEnabled = enabled
+        applySecureFlag()
     }
 
-    // No Android events yet (screenshot/recording callbacks need API 34/35). The handler is
-    // registered so listening from Dart doesn't fail.
-    override fun onListen(
-        arguments: Any?,
-        events: EventChannel.EventSink?
-    ) = Unit
-
-    override fun onCancel(arguments: Any?) = Unit
+    // Recording detection needs API 35 (addScreenRecordingCallback); not implemented yet.
+    override fun isScreenCaptured(): Boolean = false
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
@@ -88,11 +65,6 @@ class IprScreenBlurPlugin :
         activity = null
     }
 
-    private fun setSecureMode(enabled: Boolean) {
-        secureModeEnabled = enabled
-        applySecureFlag()
-    }
-
     private fun applySecureFlag() {
         Log.d("ipr_screen_blur", "Applied flag: ${!secureModeEnabled}")
         val window = activity?.window ?: return
@@ -101,10 +73,5 @@ class IprScreenBlurPlugin :
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
-    }
-
-    private companion object {
-        const val METHOD_CHANNEL = "ipr_screen_blur/methods"
-        const val EVENT_CHANNEL = "ipr_screen_blur/events"
     }
 }

@@ -1,43 +1,23 @@
 import Flutter
 import UIKit
 
-public class IprScreenBlurPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+public class IprScreenBlurPlugin: NSObject, FlutterPlugin, SecureScreenHostApi {
   private let blocker = ScreenshotBlocker()
   private let overlay = PrivacyOverlay()
-  private lazy var captureMonitor = CaptureMonitor { [weak self] event in
-    self?.eventSink?(event)
-  }
-  private var eventSink: FlutterEventSink?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = IprScreenBlurPlugin()
-    let methods = FlutterMethodChannel(
-      name: "ipr_screen_blur/methods", binaryMessenger: registrar.messenger())
-    registrar.addMethodCallDelegate(instance, channel: methods)
-    let events = FlutterEventChannel(
-      name: "ipr_screen_blur/events", binaryMessenger: registrar.messenger())
-    events.setStreamHandler(instance)
+    SecureScreenHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
+    let eventHandler = ScreenEventStreamHandler()
+    StreamScreenEventsStreamHandler.register(
+      with: registrar.messenger(), streamHandler: eventHandler)
+    registrar.publish(instance)
+    instance.eventHandler = eventHandler
   }
 
-  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    switch call.method {
-    case "setSecureMode":
-      guard let args = call.arguments as? [String: Any], let enabled = args["enabled"] as? Bool
-      else {
-        result(
-          FlutterError(code: "invalid_arguments", message: "'enabled' must be a bool", details: nil))
-        return
-      }
-      setSecureMode(enabled)
-      result(nil)
-    case "isScreenCaptured":
-      result(captureMonitor.isCaptured)
-    default:
-      result(FlutterMethodNotImplemented)
-    }
-  }
+  private var eventHandler: ScreenEventStreamHandler?
 
-  private func setSecureMode(_ enabled: Bool) {
+  func setSecureMode(enabled: Bool) throws {
     if enabled {
       blocker.enable()
       overlay.enable()
@@ -47,18 +27,25 @@ public class IprScreenBlurPlugin: NSObject, FlutterPlugin, FlutterStreamHandler 
     }
   }
 
-  public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink)
-    -> FlutterError?
-  {
-    eventSink = events
-    captureMonitor.start()
-    return nil
+  func isScreenCaptured() throws -> Bool {
+    CaptureMonitor.isCaptured
+  }
+}
+
+final class ScreenEventStreamHandler: StreamScreenEventsStreamHandler {
+  private var sink: PigeonEventSink<ScreenEvent>?
+  private lazy var monitor = CaptureMonitor { [weak self] event in
+    self?.sink?.success(event)
   }
 
-  public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-    captureMonitor.stop()
-    eventSink = nil
-    return nil
+  override func onListen(withArguments arguments: Any?, sink: PigeonEventSink<ScreenEvent>) {
+    self.sink = sink
+    monitor.start()
+  }
+
+  override func onCancel(withArguments arguments: Any?) {
+    monitor.stop()
+    sink = nil
   }
 }
 

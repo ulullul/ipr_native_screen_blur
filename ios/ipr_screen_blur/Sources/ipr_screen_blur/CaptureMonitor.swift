@@ -1,9 +1,9 @@
 import UIKit
 
 /// Reports screenshots and changes of the screen capture state (recording,
-/// AirPlay, mirroring) as event channel payloads.
+/// AirPlay, mirroring) as Pigeon ScreenEvent values.
 final class CaptureMonitor {
-  typealias EventHandler = ([String: Any]) -> Void
+  typealias EventHandler = (ScreenEvent) -> Void
 
   private let onEvent: EventHandler
   private var observers: [NSObjectProtocol] = []
@@ -14,7 +14,7 @@ final class CaptureMonitor {
     self.onEvent = onEvent
   }
 
-  var isCaptured: Bool {
+  static var isCaptured: Bool {
     let scenes = UIApplication.shared.windowScenes
     if #available(iOS 17.0, *) {
       return scenes.contains { $0.traitCollection.sceneCaptureState == .active }
@@ -24,14 +24,14 @@ final class CaptureMonitor {
 
   func start() {
     guard observers.isEmpty else { return }
-    lastCaptured = isCaptured
+    lastCaptured = Self.isCaptured
     let center = NotificationCenter.default
 
     observers.append(
       center.addObserver(
         forName: UIApplication.userDidTakeScreenshotNotification, object: nil, queue: .main
       ) { [weak self] _ in
-        self?.onEvent(["type": "screenshotTaken"])
+        self?.onEvent(ScreenshotEvent())
       })
 
     if #available(iOS 17.0, *) {
@@ -77,9 +77,9 @@ final class CaptureMonitor {
   }
 
   private func reportCaptureStateIfChanged() {
-    let captured = isCaptured
+    let captured = Self.isCaptured
     guard captured != lastCaptured else { return }
     lastCaptured = captured
-    onEvent(["type": "captureStateChanged", "captured": captured])
+    onEvent(CaptureStateEvent(captured: captured))
   }
 }

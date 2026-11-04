@@ -1,6 +1,6 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'method_channel_secure_screen.dart';
+import 'pigeon_secure_screen.dart';
 import 'secure_screen_event.dart';
 
 /// The transport-independent interface that the public API talks to.
@@ -9,11 +9,11 @@ abstract class SecureScreenPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static SecureScreenPlatform _instance = MethodChannelSecureScreen();
+  static SecureScreenPlatform _instance = PigeonSecureScreen();
 
   /// The default instance of [SecureScreenPlatform] to use.
   ///
-  /// Defaults to [MethodChannelSecureScreen].
+  /// Defaults to [PigeonSecureScreen].
   static SecureScreenPlatform get instance => _instance;
 
   static set instance(SecureScreenPlatform instance) {
